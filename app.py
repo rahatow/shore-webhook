@@ -1,23 +1,22 @@
 import requests
 from flask import Flask, request, jsonify
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
 def is_real_date(val):
-    # Проверка, что это не пустая строка и не шаблон типа {{variable}}
     return val and isinstance(val, str) and not val.startswith('{{') and not val.endswith('}}')
 
 @app.route('/free_slots', methods=['POST'])
 def get_free_slots():
     try:
         data = request.json or {}
-        # Получаем даты (если не пришли, ставим дефолт)
         date_from = data.get('date_from')
         date_to = data.get('date_to')
         if not is_real_date(date_from):
-            date_from = "2025-07-02"
+            date_from = datetime.now().strftime("%Y-%m-%d")
         if not is_real_date(date_to):
-            date_to = "2025-07-31"
+            date_to = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
 
         # Составляем payload
         payload = {
