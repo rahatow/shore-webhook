@@ -1,18 +1,13 @@
-from flask import Flask, request, jsonify
 import requests
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
-
-@app.route('/')
-def hello():
-    return 'Webhook работает!'
 
 @app.route('/free_slots', methods=['POST'])
 def get_free_slots():
     data = request.json
     date_from = data.get('date_from', "2025-07-02")
     date_to = data.get('date_to', "2025-07-31")
-
     payload = {
         "required_capacity": "1",
         "search_weeks_range": 0,
@@ -33,11 +28,20 @@ def get_free_slots():
     }
     response = requests.post("https://api.shore.com/v2/availability/calculate_slots", json=payload, headers=headers)
     data = response.json()
-    slots_str = ""
+    # Формируем даты и часы
+    dates = []
+    slots_per_date = {}
     for slot in data['slots']:
         if slot['times']:
-            slots_str += f"{slot['date']}: {', '.join(slot['times'])}\n"
-    return jsonify({"slots": slots_str})
+            dates.append(slot['date'])
+            slots_per_date[slot['date']] = ', '.join(slot['times'])
+    # Берем только ближайшие 3 даты
+    dates = dates[:3]
+    result = {
+        "dates": dates,
+        "slots_per_date": {d: slots_per_date[d] for d in dates}
+    }
+    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
