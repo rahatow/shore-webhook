@@ -11,6 +11,7 @@ def is_real_date(val):
 def get_free_slots():
     try:
         data = request.json or {}
+        print("REQUEST DATA:", data)  # ← ДОБАВЬ ЭТУ СТРОКУ!
         date_from = data.get('date_from')
         date_to = data.get('date_to')
         if not is_real_date(date_from):
