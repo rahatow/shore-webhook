@@ -3,12 +3,23 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+def is_real_date(val):
+    # Проверка, что это не пустая строка и не шаблон типа {{variable}}
+    return val and isinstance(val, str) and not val.startswith('{{') and not val.endswith('}}')
+
 @app.route('/free_slots', methods=['POST'])
 def get_free_slots():
     try:
-        data = request.json
-        date_from = data.get('date_from', "2025-07-02")
-        date_to = data.get('date_to', "2025-07-31")
+        data = request.json or {}
+        # Получаем даты (если не пришли, ставим дефолт)
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+        if not is_real_date(date_from):
+            date_from = "2025-07-02"
+        if not is_real_date(date_to):
+            date_to = "2025-07-31"
+
+        # Составляем payload
         payload = {
             "required_capacity": "1",
             "search_weeks_range": 0,
@@ -27,21 +38,26 @@ def get_free_slots():
             "Origin": "https://connect.shore.com",
             "Referer": "https://connect.shore.com/"
         }
-        # Основной запрос
+
+        print("Sending to Shore API:", payload)
         response = requests.post(
             "https://api.shore.com/v2/availability/calculate_slots",
             json=payload, headers=headers, timeout=15
         )
+        print("Shore API Response Status:", response.status_code)
+        print("Shore API Response Text:", response.text)
+
         if response.status_code != 200:
             print(f"Shore API returned error code: {response.status_code}, body: {response.text}")
             return jsonify({"error": f"Shore API error: {response.status_code}"}), 500
 
         data = response.json()
-        # Проверяем наличие слотов
+        # Проверяем, что пришли слоты
         if 'slots' not in data or not isinstance(data['slots'], list):
             print(f"No 'slots' in Shore response: {data}")
             return jsonify({"error": "No slots found in Shore response"}), 500
 
+        # Собираем даты и часы
         dates = []
         slots_per_date = {}
         for slot in data['slots']:
@@ -49,20 +65,23 @@ def get_free_slots():
                 dates.append(slot.get('date'))
                 slots_per_date[slot.get('date')] = ', '.join(slot.get('times'))
 
-        # Если дат нет вообще
+        print("DATES:", dates)
+        print("SLOTS PER DATE:", slots_per_date)
+
+        # Если дат нет вообще — сообщаем ManyChat-у
         if not dates:
             return jsonify({"dates": [], "slots_per_date": {}, "message": "Нет доступных дат"}), 200
 
-        # Берем только ближайшие 3 даты
+        # Только 3 ближайшие даты
         dates = dates[:3]
         result = {
             "dates": dates,
             "slots_per_date": {d: slots_per_date[d] for d in dates}
         }
+        print("RESULT:", result)
         return jsonify(result)
 
     except Exception as e:
-        # Печатаем ошибку в логах Render
         print(f"ERROR in /free_slots: {e}")
         return jsonify({"error": str(e)}), 500
 
